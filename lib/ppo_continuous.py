@@ -219,3 +219,4 @@ class PPO_continuous():
             p['lr'] = lr_a_now
         for p in self.optimizer_critic.param_groups:
             p['lr'] = lr_c_now
+

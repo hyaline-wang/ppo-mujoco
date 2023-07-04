@@ -13,8 +13,11 @@ class ReplayBuffer:
         self.done = np.zeros((args.batch_size, 1))
         self.count = 0
         self.device = args.device
+        self.args = args
 
     def store(self, s, a, a_logprob, r, s_, dw, done):
+        if self.count == self.args.batch_size:
+            return
         self.s[self.count] = s
         self.a[self.count] = a
         self.a_logprob[self.count] = a_logprob
