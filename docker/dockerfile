@@ -1,6 +1,6 @@
-# @ description: Dockerfile for EMAT (Embodied Multi-Agent Task)
+# @ description: Dockerfile for PPO-MuJoCo
 # @ author: Kangyao Huang
-# @ date: Apirl.05.2023
+# @ date: Aug.03.2023
 
 # If you want to use a different version of CUDA, view the available
 # images here: https://hub.docker.com/r/nvidia/cuda
