@@ -83,7 +83,7 @@ class Actor_Gaussian(nn.Module):
 class Critic(nn.Module):
     def __init__(self, args):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(args.state_dim, args.hidden_width)
+        self.fc1 = nn.Linear(args.share_state_dim, args.hidden_width)
         self.fc2 = nn.Linear(args.hidden_width, args.hidden_width)
         self.fc3 = nn.Linear(args.hidden_width, 1)
         self.activate_func = [nn.ReLU(), nn.Tanh()][args.use_tanh]  # Trick10: use tanh
@@ -103,8 +103,9 @@ class Critic(nn.Module):
         return v_s
 
 
-class PPO_continuous():
+class MAPPO_continuous():
     def __init__(self, args):
+        self.agent_num = args.agent_num
         self.policy_dist = args.policy_dist
         self.max_action = args.max_action
         self.batch_size = args.batch_size
@@ -137,15 +138,15 @@ class PPO_continuous():
             self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr_c)
 
     def evaluate(self, s):  # When evaluating the policy, we only use the mean
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float, device=self.device), 0)
+        s = torch.tensor(s, dtype=torch.float, device=self.device)
         if self.policy_dist == "Beta":
-            a = self.actor.mean(s).detach().cpu().numpy().flatten()
+            a = self.actor.mean(s).detach().cpu().numpy()
         else:
-            a = self.actor(s).detach().cpu().numpy().flatten()
+            a = self.actor(s).detach().cpu().numpy()
         return a
 
     def choose_action(self, s):
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float, device=self.device), 0)
+        s = torch.tensor(s, dtype=torch.float, device=self.device)
         if self.policy_dist == "Beta":
             with torch.no_grad():
                 dist = self.actor.get_dist(s)
@@ -157,10 +158,10 @@ class PPO_continuous():
                 a = dist.sample()  # Sample the action according to the probability distribution
                 a = torch.clamp(a, -self.max_action, self.max_action)  # [-max,max]
                 a_logprob = dist.log_prob(a)  # The log probability density of the action
-        return a.cpu().numpy().flatten(), a_logprob.cpu().numpy().flatten()
+        return a.cpu().numpy(), a_logprob.cpu().numpy()
 
     def update(self, replay_buffer, total_steps):
-        s, a, a_logprob, r, s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data
+        s, cent_s, a, a_logprob, r, s_, cent_s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data
         """
             Calculate the advantage using GAE
             'dw=True' means dead or win, there is no next state s'
@@ -169,13 +170,15 @@ class PPO_continuous():
         adv = []
         gae = 0
         with torch.no_grad():  # adv and v_target have no gradient
-            vs = self.critic(s)
-            vs_ = self.critic(s_)
+            vs = self.critic(cent_s) # (mini_batch_size, N, 1)
+            vs_ = self.critic(cent_s_) # (mini_batch_size, N, 1)
+            
             deltas = r + self.gamma * (1.0 - dw) * vs_ - vs
-            for delta, d in zip(reversed(deltas.flatten()), reversed(done.flatten())):
+            for delta, d in zip(reversed(deltas), reversed(done)):
                 gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                 adv.insert(0, gae)
-            adv = torch.tensor(adv, dtype=torch.float, device=self.device).view(-1, 1)
+            adv = torch.stack(adv)
+            
             v_target = adv + vs
             if self.use_adv_norm:  # Trick 1:advantage normalization
                 adv = ((adv - adv.mean()) / (adv.std() + 1e-5))
@@ -185,10 +188,9 @@ class PPO_continuous():
             # Random sampling and no repetition. 'False' indicates that training will continue even if the number of samples in the last time is less than mini_batch_size
             for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)), self.mini_batch_size, False):
                 dist_now = self.actor.get_dist(s[index])
-                dist_entropy = dist_now.entropy().sum(1, keepdim=True)  # shape(mini_batch_size X 1)
+                dist_entropy = dist_now.entropy().sum(-1, keepdim=True)  # (mini_batch_size, N, 1)
                 a_logprob_now = dist_now.log_prob(a[index])
-                # a/b=exp(log(a)-log(b))  In multi-dimensional continuous action space，we need to sum up the log_prob
-                ratios = torch.exp(a_logprob_now.sum(1, keepdim=True) - a_logprob[index].sum(1, keepdim=True))  # shape(mini_batch_size X 1)
+                ratios = torch.exp(a_logprob_now.sum(-1, keepdim=True) - a_logprob[index].sum(-1, keepdim=True))  # (mini_batch_size, N, 1)
 
                 surr1 = ratios * adv[index]  # Only calculate the gradient of 'a_logprob_now' in ratios
                 surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
@@ -200,7 +202,7 @@ class PPO_continuous():
                     torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
                 self.optimizer_actor.step()
 
-                v_s = self.critic(s[index])
+                v_s = self.critic(cent_s[index]) # (mini_batch_size, N, 1)
                 critic_loss = F.mse_loss(v_target[index], v_s)
                 # Update critic
                 self.optimizer_critic.zero_grad()

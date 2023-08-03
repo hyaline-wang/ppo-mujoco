@@ -160,7 +160,7 @@ class PPO_continuous():
         return a.cpu().numpy().flatten(), a_logprob.cpu().numpy().flatten()
 
     def update(self, replay_buffer, total_steps):
-        s, a, a_logprob, r, s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data
+        s, a, a_logprob, r, s_, terminated, done = replay_buffer.numpy_to_tensor()  # Get training data
         """
             Calculate the advantage using GAE
             'dw=True' means dead or win, there is no next state s'
@@ -171,7 +171,7 @@ class PPO_continuous():
         with torch.no_grad():  # adv and v_target have no gradient
             vs = self.critic(s)
             vs_ = self.critic(s_)
-            deltas = r + self.gamma * (1.0 - dw) * vs_ - vs
+            deltas = r + self.gamma * (1.0 - terminated) * vs_ - vs
             for delta, d in zip(reversed(deltas.flatten()), reversed(done.flatten())):
                 gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                 adv.insert(0, gae)

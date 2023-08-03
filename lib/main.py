@@ -8,6 +8,7 @@ from normalization import Normalization, RewardScaling
 from replaybuffer import ReplayBuffer
 from ppo_continuous import PPO_continuous
 import pickle
+import random
 
 from utils import to_device
 
@@ -51,10 +52,8 @@ def evaluate_policy(args, env, agent, state_norm):
 
 def main(args, env_name, number, seed):
     env = gym.make(env_name)
-    env_evaluate = gym.make(env_name)  # When evaluating the policy, we need to rebuild an environment
     # Set random seed
     env.reset(seed=seed)
-    env_evaluate.reset(seed=seed)
     np.random.seed(seed)
     if seed:
         torch.manual_seed(seed)
@@ -141,13 +140,14 @@ def main(args, env_name, number, seed):
             # When dead or win or reaching the max_episode_steps, done will be Ture, we need to distinguish them;
             # dw means dead or win,there is no next state s';
             # but when reaching the max_episode_steps,there is a next state s' actually.
-            if terminated and episode_steps != args.max_episode_steps:
-                dw = True
-            else:
-                dw = False
-
+            # if terminated and episode_steps != args.max_episode_steps:
+            #     dw = True
+            # else:
+            #     dw = False
+            
+            done = True if terminated or truncated else False
             # Take the 'action'，but store the original 'a'（especially for Beta）
-            replay_buffer.store(s, a, a_logprob, r, s_, dw, terminated)
+            replay_buffer.store(s, a, a_logprob, r, s_, terminated, done)
             s = s_
             total_steps += 1
 
@@ -159,7 +159,7 @@ def main(args, env_name, number, seed):
             # Evaluate the policy every 'evaluate_freq' steps
             if total_steps % args.evaluate_freq == 0:
                 evaluate_num += 1
-                evaluate_reward = evaluate_policy(args, env_evaluate, agent, state_norm)
+                evaluate_reward = evaluate_policy(args, env, agent, state_norm)
                 evaluate_rewards.append(evaluate_reward)
                 print("evaluate_num:{} \t evaluate_reward:{} \t".format(evaluate_num, evaluate_reward))
                 writer.add_scalar('step_rewards_{}'.format(env_name), evaluate_rewards[-1], global_step=total_steps)
@@ -235,12 +235,13 @@ if __name__ == '__main__':
     parser.add_argument("--use_lr_decay", type=str2bool, default=True, help="Trick 6:learning rate Decay")
     parser.add_argument("--use_grad_clip", type=str2bool, default=True, help="Trick 7: Gradient clip")
     parser.add_argument("--use_orthogonal_init", type=str2bool, default=True, help="Trick 8: orthogonal initialization")
-    parser.add_argument("--set_adam_eps", type=float, default=True, help="Trick 9: set Adam epsilon=1e-5")
-    parser.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
+    parser.add_argument("--set_adam_eps", type=str2bool, default=True, help="Trick 9: set Adam epsilon=1e-5")
+    parser.add_argument("--use_tanh", type=str2bool, default=True, help="Trick 10: tanh activation function")
 
     parser.add_argument("--use_gpu", type=int, default=1)
     parser.add_argument("--n_training_threads", type=int, default=1)
-    parser.add_argument("--deterministic", type=bool, default=True)
+    parser.add_argument("--deterministic", type=str2bool, default=True)
+    parser.add_argument("--env_index", type=int, required=True)
 
     args = parser.parse_args()
 
@@ -256,5 +257,5 @@ if __name__ == '__main__':
     # 3: "HalfCheetah-v4"
     # 4: "Swimmer-v4"
 
-    env_index = 0
-    main(args, env_name=env_name[env_index], number=1, seed=10)
+    seed = random.randint(0, 20)
+    main(args, env_name=env_name[args.env_index], number=1, seed=seed)

@@ -12,8 +12,19 @@ docker run -it --name ma-mujoco -v ws:/root/ws --gpus=all -v /tmp/.x11-unix:/tmp
 ```
 
 # Training
+
+## MultiHopper
+1: default
 ```
-python train.py --cfg config/multi_walker2d_v0.yaml
+python main.py --env_index 1 --agent_num 1
+```
+2:
+```
+python main.py --env_index 1 --agent_num 2 --batch_size 4096 --mini_batch_size 128
+```
+3:
+```
+python main.py --env_index 1 --agent_num 3 --batch_size 4096 --mini_batch_size 128
 ```
 
 # Dispaly

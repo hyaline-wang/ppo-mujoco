@@ -9,18 +9,18 @@ class ReplayBuffer:
         self.a_logprob = np.zeros((args.batch_size, args.action_dim))
         self.r = np.zeros((args.batch_size, 1))
         self.s_ = np.zeros((args.batch_size, args.state_dim))
-        self.dw = np.zeros((args.batch_size, 1))
+        self.terminated = np.zeros((args.batch_size, 1))
         self.done = np.zeros((args.batch_size, 1))
         self.count = 0
         self.device = args.device
 
-    def store(self, s, a, a_logprob, r, s_, dw, done):
+    def store(self, s, a, a_logprob, r, s_, terminated, done):
         self.s[self.count] = s
         self.a[self.count] = a
         self.a_logprob[self.count] = a_logprob
         self.r[self.count] = r
         self.s_[self.count] = s_
-        self.dw[self.count] = dw
+        self.terminated[self.count] = terminated
         self.done[self.count] = done
         self.count += 1
 
@@ -30,7 +30,7 @@ class ReplayBuffer:
         a_logprob = torch.tensor(self.a_logprob, dtype=torch.float, device=self.device)
         r = torch.tensor(self.r, dtype=torch.float, device=self.device)
         s_ = torch.tensor(self.s_, dtype=torch.float, device=self.device)
-        dw = torch.tensor(self.dw, dtype=torch.float, device=self.device)
+        terminated = torch.tensor(self.terminated, dtype=torch.float, device=self.device)
         done = torch.tensor(self.done, dtype=torch.float, device=self.device)
 
-        return s, a, a_logprob, r, s_, dw, done
+        return s, a, a_logprob, r, s_, terminated, done
