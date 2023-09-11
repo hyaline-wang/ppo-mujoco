@@ -227,6 +227,7 @@ if __name__ == '__main__':
     parser.add_argument("--lamda", type=float, default=0.95, help="GAE parameter")
     parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
     parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
+    
     parser.add_argument("--use_adv_norm", type=str2bool, default=True, help="Trick 1:advantage normalization")
     parser.add_argument("--use_state_norm", type=str2bool, default=True, help="Trick 2:state normalization")
     parser.add_argument("--use_reward_norm", type=str2bool, default=False, help="Trick 3:reward normalization")
